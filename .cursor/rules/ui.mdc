@@ -1,3 +1,17 @@
 ---
 alwaysApply: true
 ---
+Design should be:
+- clean
+- modern
+- minimal
+- mobile responsive
+
+Brand colors:
+- #084544
+- #e6ddbc
+- #bba53d
+- #008f47
+- #00602f
+
+Avoid clutter and generic admin UI look.

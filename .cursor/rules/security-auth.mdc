@@ -1,3 +1,8 @@
 ---
 alwaysApply: true
 ---
+- Only allow @darulislah.org login
+- All routes must be protected
+- Role-based access required
+- Do not rely on client-side auth only
+- Sensitive data must not be exposed

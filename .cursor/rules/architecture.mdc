@@ -1,3 +1,17 @@
 ---
 alwaysApply: true
 ---
+This project is an internal portal for Darul Islah.
+
+Stack:
+- Next.js App Router
+- TypeScript
+- Tailwind
+- Prisma
+- PostgreSQL
+
+Rules:
+- keep architecture simple and scalable
+- prefer server components
+- avoid unnecessary abstraction
+- organize by feature
