@@ -1,8 +1,10 @@
-# Darul Islah Internal Employee Portal — PROJECT_SPEC.md
+# PROJECT_SPEC.md — Darul Islah Internal Portal
 
-> **Version:** 2.0 (Revised MVP)
-> **Stack:** Next.js 14 App Router · TypeScript · Tailwind CSS · Prisma · PostgreSQL · Google OAuth (NextAuth.js) · Vercel
-> **Last updated:** 2026-03-26
+> **Version:** 1.0
+> **Status:** Active — Phase 1 MVP
+> **Stack:** Next.js 14 App Router · TypeScript · Tailwind CSS · shadcn/ui ·
+> Prisma · PostgreSQL (Neon) · NextAuth.js v5 · Google OAuth · Vercel
+> **Last updated:** 2026-03-27
 
 ---
 
@@ -10,39 +12,58 @@
 
 1. [Product Goals](#1-product-goals)
 2. [MVP Scope](#2-mvp-scope)
-3. [User Roles & Permissions](#3-user-roles--permissions)
+3. [User Roles and Permissions](#3-user-roles-and-permissions)
 4. [Information Architecture](#4-information-architecture)
 5. [Page-by-Page Breakdown](#5-page-by-page-breakdown)
 6. [Technical Architecture](#6-technical-architecture)
-7. [Database Schema](#7-database-schema)
-8. [Security Model](#8-security-model)
-9. [Phased Implementation Plan](#9-phased-implementation-plan)
-10. [Deferred to Phase 2](#10-deferred-to-phase-2)
+7. [Security Model](#7-security-model)
+8. [Explicitly Out of Scope](#8-explicitly-out-of-scope)
+9. [Phase 2 Ideas](#9-phase-2-ideas)
 
 ---
 
 ## 1. Product Goals
 
-### 1.1 Mission
+### Mission
 
-Give Darul Islah staff a single, secure, low-maintenance internal workspace that centralizes communication, documents, requests, and form submissions — without the overhead of complex scheduling or file-hosting infrastructure.
+Give Darul Islah staff one authenticated, role-aware workspace that replaces
+scattered email threads, shared Google Drive folders, and verbal hand-offs.
+The portal centralizes communication, documents, requests, and form data in a
+single place that every staff member can access with their existing
+`@darulislah.org` Google account.
 
-### 1.2 Design Principles
+### Design Principles
 
-- **Lightweight by default.** Prefer linking over hosting, syncing over rebuilding, and simple tables over complex workflows.
-- **Role-aware, not role-rigid.** Most access is role-based, but specific users can be granted access to specific modules (especially Jotform forms) regardless of role.
-- **Google-native.** Leverage Google Workspace for auth, calendar, and file hosting (Drive links). Don't duplicate what Google already does well.
-- **Maintainable by a non-developer admin.** Content management, user roles, and Jotform access mappings should be manageable from an admin UI without touching code.
+**Lightweight by default.**
+Prefer linking over hosting, syncing over rebuilding, and simple DB queries
+over complex infrastructure. This portal should be maintainable by one person
+who is not a full-time engineer.
 
-### 1.3 Success Criteria (Phase 1)
+**Google-native.**
+Auth, file hosting, and calendar all live in Google Workspace already. The
+portal surfaces that data — it does not duplicate it. Google Drive links replace
+file uploads. Google Calendar drives the events list. Google OAuth handles
+login.
+
+**Role-aware, not role-rigid.**
+Most access is controlled by role. Where that is too coarse (e.g., a specific
+staff member who manages a specific Jotform form), user-level access grants
+fill the gap without requiring a role change.
+
+**Practical admin experience.**
+Content management, user roles, and Jotform access mappings must be manageable
+from an admin UI. No code changes required to add an announcement, update a
+document link, or grant a user access to a form.
+
+### What Success Looks Like at 90 Days
 
 | Metric | Target |
 |---|---|
-| Weekly active users | ≥ 80% of staff roster within 60 days |
-| Internal requests submitted via portal | ≥ 90% (replacing email/verbal) |
-| Time to find any SOP or document | < 30 seconds |
-| Unauthorized access incidents | 0 |
-| Login support tickets | 0 (Google SSO is transparent) |
+| Weekly active users | ≥ 80% of staff roster |
+| Internal requests submitted via portal vs. email/verbal | ≥ 90% |
+| Time for any staff member to find a specific SOP | < 30 seconds |
+| Unauthorized data access incidents | 0 |
+| Login support tickets | 0 |
 
 ---
 
@@ -50,142 +71,191 @@ Give Darul Islah staff a single, secure, low-maintenance internal workspace that
 
 ### 2.1 Included Modules
 
-| Module | Summary | Priority |
+| Module | What it does | Priority |
 |---|---|---|
-| **Authentication** | Google OAuth restricted to `@darulislah.org`; role assignment; session management | P0 |
-| **Dashboard** | Personalized landing: pinned announcements, pending requests, upcoming events, quick links | P0 |
-| **Announcements** | Role-targeted posts with rich text, pinning, expiry, and attachments | P0 |
-| **Document / SOP Hub** | Metadata + external link library (Google Drive, etc.); categorized; role-gated | P0 |
+| **Authentication** | Google OAuth restricted to `@darulislah.org`; role assignment; new user flow | P0 |
+| **Dashboard** | Personalized landing page: pinned announcements, open requests, upcoming events, quick links | P0 |
+| **Announcements** | Role-targeted posts with rich text, pinning, expiry, and attachment links | P0 |
+| **Document / SOP Hub** | Metadata + external link library organized by category; role-gated by category | P0 |
 | **Quick Links** | Admin-curated shortcut grid with role-based visibility | P0 |
-| **Internal Requests / Help Desk** | Request submission, assignment, status tracking, threaded comments | P1 |
-| **Google Calendar Events** | Read-only event list pulled from Google Calendar; no custom scheduling | P1 |
-| **Jotform Submissions Viewer** | Admin and designated users view submissions from assigned Jotform forms | P1 |
+| **Internal Requests / Help Desk** | Submit, assign, track, and resolve internal requests with threaded comments | P1 |
+| **Google Calendar Events** | Read-only event list pulled from Google Calendar via API; cached locally | P1 |
+| **Jotform Submissions Viewer** | View submissions from assigned Jotform forms; access by role or specific user | P1 |
 
-### 2.2 Hard Exclusions from MVP
+### 2.2 Key Product Decisions
 
-- Vendor directory
-- Hall booking workflow
-- File hosting / storage (use Google Drive links instead)
-- Public-facing pages or member portal
-- Email digest or notification system (in-app only for MVP)
-- Two-way Google Calendar write-back
-- Financial, HR, or payroll data
-- Native mobile app
+**Documents are links, not uploads.**
+The Document Hub stores a title, description, category, tags, and an external
+URL (Google Drive, Dropbox, SharePoint, etc.). There is no file upload, no
+cloud storage bucket, and no MIME type validation. If a file lives in Google
+Drive, it stays there — the portal just makes it findable.
 
-### 2.3 Key Product Decisions
+**Calendar is read-only.**
+Events come from one or more Google Calendar IDs configured by a super admin.
+The portal displays them. Staff cannot create, edit, or delete calendar events
+from the portal.
 
-- **Documents are metadata + links, not uploads.** Each document record stores a title, description, category, tags, and an external URL (Google Drive, Dropbox, etc.). No Vercel Blob or S3 in Phase 1.
-- **Calendar is display-only.** Events are pulled from one or more Google Calendar IDs via the Google Calendar API, cached in the database, and shown in a list/month view. Staff cannot create events from the portal.
-- **Jotform access is dual-mode.** A form can be visible to a role (e.g., all admins) OR to a specific user (e.g., `evening.school@darulislah.org`), or both. Super admins see all forms always.
+**Jotform is read-only.**
+The submissions viewer lets designated users see form responses. The portal
+never writes back to Jotform. Submission data is cached locally to avoid
+Jotform API rate limits on every page load.
+
+**Jotform access is dual-mode.**
+A form can be visible to an entire role (e.g., all admins) or to a specific
+user account regardless of role (e.g., `evening.school@darulislah.org`).
+Super admins see all forms unconditionally. This is enforced server-side on
+every request.
 
 ---
 
-## 3. User Roles & Permissions
+## 3. User Roles and Permissions
 
 ### 3.1 Role Definitions
 
-| Role | Who | Description |
+| Role | Who has it | What they can do |
 |---|---|---|
-| `super_admin` | Executive Director, IT Lead | Full access to all modules, users, settings, and all Jotform forms |
-| `admin` | Department heads, Office Manager | Manage content in their assigned scope; approve/assign requests; see role-granted Jotform forms |
-| `staff` | Full-time and part-time employees | Read access to most content; submit requests; see role-granted or user-granted Jotform forms |
-| `volunteer` | Regular volunteers with Google Workspace accounts | View public announcements and quick links only; no requests, no documents, no Jotform |
+| `SUPER_ADMIN` | Executive Director, IT Lead | Everything. Manages users, roles, system settings, calendar sources, and all Jotform form access. |
+| `ADMIN` | Department heads, Office Manager | Manages content within their scope: announcements, documents, quick links. Assigns and resolves requests. Sees role-granted Jotform forms. |
+| `STAFF` | Full-time and part-time employees | Reads content, submits requests, views assigned Jotform forms. Cannot create announcements or manage documents. |
+| `VOLUNTEER` | Regular volunteers with Workspace accounts | Views public announcements, quick links, and calendar only. No requests, no documents, no Jotform. |
 
 ### 3.2 Permission Matrix
 
-| Action | super_admin | admin | staff | volunteer |
+| Action | SUPER_ADMIN | ADMIN | STAFF | VOLUNTEER |
 |---|---|---|---|---|
-| Manage users & roles | ✅ | ❌ | ❌ | ❌ |
-| View all Jotform forms | ✅ | ❌ | ❌ | ❌ |
-| View role-assigned Jotform forms | ✅ | ✅ | ✅ | ❌ |
-| View user-assigned Jotform forms | ✅ | ✅ | ✅ | ❌ |
-| Manage Jotform form access mappings | ✅ | ❌ | ❌ | ❌ |
-| Create / edit announcements | ✅ | ✅ | ❌ | ❌ |
-| View announcements (staff-targeted) | ✅ | ✅ | ✅ | ❌ |
-| View announcements (public) | ✅ | ✅ | ✅ | ✅ |
-| Manage document library | ✅ | ✅ | ❌ | ❌ |
-| View restricted document categories | ✅ | ✅ | ✅ | ❌ |
-| View public document categories | ✅ | ✅ | ✅ | ✅ |
-| Manage quick links | ✅ | ✅ | ❌ | ❌ |
+| **Users** | | | | |
+| Manage users and roles | ✅ | ❌ | ❌ | ❌ |
+| **Announcements** | | | | |
+| Create / edit / delete announcements | ✅ | ✅ | ❌ | ❌ |
+| View staff-targeted announcements | ✅ | ✅ | ✅ | ❌ |
+| View public announcements | ✅ | ✅ | ✅ | ✅ |
+| **Documents** | | | | |
+| Add / edit / archive document records | ✅ | ✅ | ❌ | ❌ |
+| Manage categories and visibility | ✅ | ✅ | ❌ | ❌ |
+| View staff-visible categories | ✅ | ✅ | ✅ | ❌ |
+| View public categories | ✅ | ✅ | ✅ | ✅ |
+| **Quick Links** | | | | |
+| Create / edit / delete quick links | ✅ | ✅ | ❌ | ❌ |
 | View quick links | ✅ | ✅ | ✅ | ✅ |
-| Submit help desk requests | ✅ | ✅ | ✅ | ❌ |
-| Assign / resolve requests | ✅ | ✅ | ❌ | ❌ |
-| View all requests (admin view) | ✅ | ✅ | ❌ | ❌ |
+| **Requests** | | | | |
+| Submit a request | ✅ | ✅ | ✅ | ❌ |
 | View own requests | ✅ | ✅ | ✅ | ❌ |
-| View calendar events | ✅ | ✅ | ✅ | ✅ |
+| View all requests | ✅ | ✅ | ❌ | ❌ |
+| Assign / change status / resolve | ✅ | ✅ | ❌ | ❌ |
+| Post internal-only comments | ✅ | ✅ | ❌ | ❌ |
+| **Calendar** | | | | |
+| View events | ✅ | ✅ | ✅ | ✅ |
 | Manage calendar sources | ✅ | ❌ | ❌ | ❌ |
+| **Jotform** | | | | |
+| View all forms (unconditional) | ✅ | ❌ | ❌ | ❌ |
+| View role-granted forms | ✅ | ✅ | ✅ | ❌ |
+| View user-granted forms | ✅ | ✅ | ✅ | ❌ |
+| Manage form configs and access | ✅ | ❌ | ❌ | ❌ |
 
-### 3.3 User-Specific Access (Override Layer)
+### 3.3 Jotform Access Resolution
 
-In addition to role-based permissions, any user can be granted access to a specific Jotform form regardless of their role. This is stored as an explicit `JotformFormAccess` record mapping `userId → formId`.
+For any user attempting to access a specific form, the server checks in this
+order and grants access on the first match:
 
-**Resolution order for Jotform access:**
+1. User role is `SUPER_ADMIN` → **granted**
+2. A `JotformFormAccess` record exists with `roleAccess = user.role` → **granted**
+3. A `JotformFormAccess` record exists with `userId = user.id` → **granted**
+4. None of the above → **denied** (return `notFound()`, not `403`)
 
-1. User is `super_admin` → sees all forms
-2. Form has an access record where `roleAccess` includes the user's role → user sees it
-3. Form has an access record where `userId` matches the user → user sees it
-4. Otherwise → form is not visible to the user
+Returning `notFound()` on a denied form prevents users from confirming that
+a form exists. This is enforced in every Server Component and Server Action
+that touches Jotform data — not just in middleware.
 
 ### 3.4 New User Flow
 
-1. First login via Google OAuth creates a `User` record with `status: PENDING_ROLE`
-2. User sees a holding page: *"Your account is pending role assignment. Please contact your administrator."*
-3. `super_admin` assigns a role from the User Management screen
-4. User can now access the portal on next page load (session refreshes role)
-5. **Exception:** The very first user to log in is auto-assigned `super_admin`
+Every first-time login creates a `User` record with `status: PENDING_ROLE`.
+The user is redirected to a holding page and cannot access any portal content
+until a `SUPER_ADMIN` assigns them a role. The very first user to sign in is
+automatically assigned `SUPER_ADMIN` and bypasses the holding page.
 
 ---
 
 ## 4. Information Architecture
 
-### 4.1 Site Map
+### 4.1 Route Map
 ```
-/
-├── /login                          (public)
-├── /pending                        (authenticated, no role yet)
-│
-├── /dashboard                      (all roles)
-├── /announcements                  (all roles, content filtered by role)
-│   ├── /[id]
-│   └── /new                        (admin+)
-├── /documents                      (staff+, categories filtered by role)
-│   └── /[categoryId]
-├── /quick-links                    (all roles, filtered by role)
-├── /requests                       (staff+)
-│   ├── /new
-│   └── /[id]
-├── /calendar                       (all roles)
-├── /jotform                        (staff+ with form access)
-│   └── /[formId]
-│
-└── /admin                          (admin+)
-    ├── /users                      (super_admin only)
-    ├── /announcements
-    ├── /documents
-    ├── /quick-links
-    ├── /requests
-    ├── /jotform                    (super_admin only — manage form access)
-    └── /settings                   (super_admin only)
+/                                   → redirects to /dashboard if authenticated
+/login                              → Google sign-in (public)
+/pending                            → holding page for users awaiting role assignment
+
+/dashboard                          → all authenticated roles
+/announcements                      → all roles (content filtered by role)
+/announcements/[id]                 → all roles (access checked)
+/documents                          → STAFF+
+/documents/[categoryId]             → STAFF+ (category visibility checked)
+/requests                           → STAFF+
+/requests/new                       → STAFF+
+/requests/[id]                      → STAFF+ (own requests only for STAFF)
+/calendar                           → all roles
+/jotform                            → STAFF+ with at least one form access
+/jotform/[formId]                   → STAFF+ with access to that specific form
+/quick-links                        → all roles (filtered by role)
+
+/admin                              → ADMIN+
+/admin/announcements                → ADMIN+
+/admin/announcements/new            → ADMIN+
+/admin/announcements/[id]/edit      → ADMIN+
+/admin/documents                    → ADMIN+
+/admin/documents/categories/new     → ADMIN+
+/admin/documents/categories/[id]    → ADMIN+
+/admin/documents/new                → ADMIN+
+/admin/documents/[id]/edit          → ADMIN+
+/admin/quick-links                  → ADMIN+
+/admin/requests                     → ADMIN+
+/admin/users                        → SUPER_ADMIN only
+/admin/jotform                      → SUPER_ADMIN only
+/admin/jotform/new                  → SUPER_ADMIN only
+/admin/jotform/[id]/edit            → SUPER_ADMIN only
+/admin/settings                     → SUPER_ADMIN only
+
+/403                                → shown for insufficient role
+/api/auth/[...nextauth]             → NextAuth handler
+/api/cron/sync-calendar             → Vercel Cron (protected by CRON_SECRET)
+/api/cron/sync-jotform              → Vercel Cron (protected by CRON_SECRET)
 ```
 
-### 4.2 Navigation
+### 4.2 Navigation Structure
 
-**Primary sidebar (all authenticated users):**
+**Primary sidebar — visible to all authenticated users:**
 - Dashboard
 - Announcements
-- Documents
-- Requests *(badge: open count)*
+- Documents *(STAFF+ only)*
+- Requests *(STAFF+ only, badge showing open count)*
 - Calendar
-- Jotform *(only shown if user has ≥1 form access)*
-- Quick Links *(can also embed in dashboard)*
+- Jotform *(STAFF+ only, hidden entirely if user has zero form access)*
+- Quick Links
 
-**Admin section (below divider, admin+ only):**
-- User Management *(super_admin only)*
-- Admin → Announcements
-- Admin → Documents
-- Admin → Requests
-- Admin → Jotform Access *(super_admin only)*
-- Settings *(super_admin only)*
+**Admin section — below a divider, visible to ADMIN+ only:**
+- Manage Announcements
+- Manage Documents
+- Manage Quick Links
+- Manage Requests
+
+**Super admin section — visible to SUPER_ADMIN only:**
+- User Management
+- Jotform Access
+- Settings
+
+### 4.3 Dashboard Widget Map
+
+Each widget is an independent async Server Component. Placeholder widgets are
+shown for modules not yet built; they are replaced in place as modules ship.
+
+| Widget | Shown to | Data source |
+|---|---|---|
+| Greeting + date | All | Session (name, avatar) |
+| Pinned announcements | All (role-filtered) | `Announcement` table |
+| My open requests | STAFF+ | `Request` table (own requests) |
+| Pending requests (admin) | ADMIN+ | `Request` table (all unassigned) |
+| Upcoming events | All | `CalendarEvent` table (next 5) |
+| Quick links | All (role-filtered) | `QuickLink` table |
+| Recent documents | STAFF+ | `Document` table (last 5 accessible) |
+| My Jotform forms | STAFF+ with access | `JotformFormAccess` + `JotformForm` |
 
 ---
 
@@ -193,205 +263,243 @@ In addition to role-based permissions, any user can be granted access to a speci
 
 ### 5.1 Login (`/login`)
 
-- **Layout:** Centered card, DI logo, "Sign in with Google" button
-- **Logic:**
-  - Google OAuth popup → verify `hd === 'darulislah.org'` server-side
-  - Wrong domain: show friendly error, do not create session
-  - Valid domain: upsert user record, create session, redirect
-  - New user (no role): redirect to `/pending`
-  - Returning user with role: redirect to `/dashboard` (or original `callbackUrl`)
-- **No username/password.** Google SSO only.
+Single centered card with the DI logo and a "Sign in with Google" button.
+No username or password fields. No other auth methods.
+
+On sign-in, NextAuth verifies `hd === 'darulislah.org'` server-side before
+creating any session. A non-`darulislah.org` account sees a friendly error
+message and no session is created. A valid account with no role assigned is
+redirected to `/pending`. A valid account with a role goes to `/dashboard`
+or the original `callbackUrl`.
 
 ---
 
 ### 5.2 Dashboard (`/dashboard`)
 
-Widgets rendered server-side, composed based on the user's role:
+The portal home. All widgets are server-rendered. The page composes widgets
+conditionally based on the current user's role — no client-side role checks.
 
-| Widget | Shown to | Content |
-|---|---|---|
-| Greeting + date | All | Name, avatar, today's date, Hijri date (optional) |
-| Pinned announcements | All | Up to 3 pinned, role-filtered |
-| My open requests | staff+ | Count + list of user's own open requests |
-| Pending requests (admin) | admin+ | Requests awaiting assignment or resolution |
-| Upcoming events | All | Next 5 events from Google Calendar cache |
-| Quick links | All | Role-filtered curated links, up to 8 |
-| Recent documents | staff+ | 5 most recently added docs the user can access |
-| My Jotform forms | staff+ with access | Links to accessible Jotform form views |
+The dashboard is the frame that all other modules attach to. Build it early
+with placeholder widgets. Replace placeholders as each module ships.
 
 ---
 
-### 5.3 Announcements (`/announcements`)
+### 5.3 Announcements (`/announcements`, `/announcements/[id]`)
 
 **List view:**
-- Cards sorted: pinned first, then by `createdAt` descending
-- Filter by tag (client-side)
-- Role filtering applied server-side (volunteers only see `targetRoles` that include `VOLUNTEER` or empty = all)
-- Expired announcements excluded from list automatically
+Sorted pinned-first, then by `createdAt` descending. Role filtering is applied
+in the database query — a `VOLUNTEER` only sees announcements where `targetRoles`
+is empty (meaning all roles) or explicitly includes `VOLUNTEER`. Expired
+announcements (`expiresAt < now`) are excluded from the query entirely.
 
-**Detail view (`/announcements/[id]`):**
-- Full rich text body (sanitized HTML)
-- Author name + avatar, published date
-- Attached file links (external URLs, not hosted files)
+**Detail view:**
+Renders the sanitized rich text body, author info, publish date, and any
+attachment links. Attachment links open in a new tab. No file downloads served
+by the portal.
 
-**Create/Edit (`/admin/announcements/new`, `/admin/announcements/[id]/edit`) — admin+:**
-- Title, rich text body (TipTap editor)
-- Target roles (multi-select: All, Volunteer, Staff, Admin, Super Admin)
-- Target teams (optional multi-select)
-- Pin toggle
+**Admin create/edit (`/admin/announcements/new`, `/admin/announcements/[id]/edit`):**
+- Title (plain text)
+- Body (TipTap rich text editor — client component)
+- Target roles (multi-select; empty = all roles)
+- Target teams (optional multi-select; empty = all teams)
+- Pinned toggle
 - Expiry date picker (optional)
-- External attachment URLs (label + URL pairs, no file upload)
+- Attachment links: list of `{ label, url }` pairs — no file upload
+
+Body is sanitized with `isomorphic-dompurify` before storage and again before
+rendering. Soft delete only — `deletedAt` timestamp, never a hard `DELETE`.
 
 ---
 
-### 5.4 Document / SOP Hub (`/documents`)
+### 5.4 Document / SOP Hub (`/documents`, `/documents/[categoryId]`)
 
-**Design decision: metadata + links only.** Documents are records in the database pointing to externally hosted files (Google Drive, SharePoint, Dropbox, etc.). No file upload, no Vercel Blob, no S3.
+**Category list (`/documents`):**
+Grid of cards, one per accessible category. Categories where `visibleTo` does
+not include the user's role are excluded from the query — they do not appear
+in the grid and their URLs return `notFound()`.
 
-**Category list:**
-- Grid of category cards, each with name, description, document count
-- Categories filtered by `visibleTo` roles server-side
+**Document list (`/documents/[categoryId]`):**
+List of documents in the category. Each row shows: title, description, source
+label badge (e.g., "Google Drive"), tags, and an "Open" button that opens
+the `externalUrl` in a new tab. Client-side text filter across title and tags.
+No pagination needed at MVP scale.
 
-**Category view (`/documents/[categoryId]`):**
-- List of documents in the category
-- Each document: title, description, tags, last updated, external link button ("Open in Drive")
-- Search/filter within category (client-side)
+**Document records contain:**
+- Title
+- Description (optional)
+- External URL (the actual file location — Google Drive, Dropbox, etc.)
+- Source label (display string: "Google Drive", "SharePoint", etc.)
+- Category
+- Tags (string array)
+- Added by, added date, last updated date
 
-**Document record fields:**
-- Title, description, category, tags
-- External URL (the actual file link)
-- Source label (e.g., "Google Drive", "Dropbox")
-- Visibility (inherits from category, can be overridden)
-- Added by, added date, last updated
+**Admin (`/admin/documents`):**
+Manage categories (name, description, `visibleTo` roles, sort order, active
+toggle) and document records (all fields above). Soft delete on documents
+(`deletedAt`). Categories are deactivated, not deleted, so their document
+history is preserved.
 
-**Admin (`/admin/documents`) — admin+:**
-- Manage categories (name, description, visibility roles)
-- Add/edit/archive document records (no file upload — just fill in the external URL)
-
----
-
-### 5.5 Quick Links (`/quick-links`)
-
-Admin-curated list of shortcuts. Displayed in a grid on the dashboard and on the dedicated page.
-
-**Link record fields:** Label, URL, icon (emoji or icon name from set), category/group, visible to (role array), sort order, active toggle
-
-**Admin:** Simple table CRUD interface. Drag-to-reorder optional (Phase 2).
+There is no file upload at any point in this flow. If an admin pastes a broken
+URL, the "Open" button will fail silently. Document this in admin onboarding:
+verify every link before saving.
 
 ---
 
-### 5.6 Internal Requests / Help Desk (`/requests`)
+### 5.5 Quick Links
+
+No dedicated staff-facing page needed. Quick links appear in the dashboard
+widget grid and optionally in the sidebar footer. Each link opens in a new tab.
+
+**Link record fields:**
+- Label
+- URL
+- Icon (emoji or icon name from a defined set)
+- Group/category label (for visual grouping)
+- Visible to (role array; empty = all roles)
+- Sort order
+- Active toggle
+
+**Admin (`/admin/quick-links`):**
+Simple table with add, edit, delete, and sort order controls.
+
+---
+
+### 5.6 Internal Requests / Help Desk (`/requests`, `/requests/[id]`)
 
 **Submission form (`/requests/new`):**
-- Title, description, type (IT / Facilities / HR / Other — admin-configurable)
+- Title
+- Type (IT / Facilities / HR / Other — hardcoded for MVP)
+- Description
 - Priority (Low / Medium / High / Urgent)
-- Optional: attach external file links (not uploaded files)
+- Attachment links: list of `{ label, url }` pairs — no file upload
 
 **Status workflow:**
 ```
 OPEN → IN_PROGRESS → RESOLVED → CLOSED
-              ↑______________|
-         (requester can reopen within 7 days of RESOLVED)
+                         ↑
+               Requester can reopen within
+               7 days of RESOLVED status
 ```
 
-**Requester view:**
-- List of own requests with status badges
-- Detail view with full thread of comments
-- Can add comments, cannot change status
+No skipping states. Transitions are validated server-side. `CLOSED` is terminal.
+
+**Staff view:**
+Lists their own requests with status badges. Detail view shows the full request
+and a comment thread. Staff can add comments and reopen within the 7-day window.
+Staff cannot see other users' requests — a direct URL to another user's request
+returns `notFound()`.
 
 **Admin view (`/admin/requests`):**
-- All requests, filterable by status / type / priority / assignee
-- Assign to a team member
+All requests, filterable by status, type, priority, and assignee. Admins can:
+- Assign a request to any `ADMIN+` user
 - Change status
-- Add comments — toggle: **public** (requester sees) or **internal** (admin-only)
-- Color-coded SLA indicator (green / yellow / red based on age vs priority)
+- Post public comments (visible to requester) or internal comments (admin-only)
+
+**SLA color indicators** (visual only — no auto-escalation in Phase 1):
+
+| Priority | SLA target | Yellow threshold | Red threshold |
+|---|---|---|---|
+| Low | 72 hours | 54 hours | 72 hours |
+| Medium | 48 hours | 36 hours | 48 hours |
+| High | 24 hours | 18 hours | 24 hours |
+| Urgent | 4 hours | 3 hours | 4 hours |
+
+Internal comments are filtered out of the requester's view in the database
+query — not hidden client-side.
 
 ---
 
 ### 5.7 Google Calendar Events (`/calendar`)
 
-**Data source:** One or more Google Calendar IDs configured by `super_admin` in Settings. Pulled via Google Calendar API using a service account.
-
 **Display:**
-- Toggle between **list view** (next 30 events) and **month grid view**
-- Each event: title, date/time, location, description
-- Color-coded by calendar source
+Toggle between list view (next 30 events sorted ascending) and month grid view.
+Each event shows: title, date and time (or "All day"), location if present,
+description if present, and a color dot indicating the source calendar.
 
-**Sync:** Server-side cron job (Vercel Cron) runs every 15 minutes. Events stored in `CalendarEvent` table. Portal reads from the cache — no live Google API call on page load.
+**Data source:**
+One or more Google Calendar IDs configured by a `SUPER_ADMIN` in Settings.
+Events are cached in the `CalendarEvent` table and read from there on page load.
+The page never calls the Google Calendar API directly.
 
-**Permissions:** All authenticated users (including volunteers) can view.
+**Sync:**
+A Vercel Cron job calls `/api/cron/sync-calendar` every 15 minutes. The handler
+fetches events for the next 60 days from each active `CalendarSource`, upserts
+them by `googleEventId`, and removes events that no longer exist in Google.
+The cron endpoint is protected by a `Bearer ${CRON_SECRET}` header check.
 
-**Admin settings:** Add/remove calendar source IDs, assign display names and colors, toggle active/inactive.
+**Permissions:**
+All authenticated users including volunteers can view the calendar.
+
+**Admin settings (`/admin/settings`):**
+Add or remove calendar source IDs, set display names and colors, toggle active.
+Manual sync trigger button.
 
 ---
 
-### 5.8 Jotform Submissions Viewer (`/jotform`)
+### 5.8 Jotform Submissions Viewer (`/jotform`, `/jotform/[formId]`)
 
-**Purpose:** Allow designated staff and admins to view Jotform form submissions without needing a Jotform account or sharing login credentials.
+**Form list (`/jotform`):**
+Grid of cards, one per accessible form. Access filtering runs in the database
+query — forms the user cannot access are not in the result set and their URLs
+return `notFound()`. Hidden entirely from the sidebar if the user has zero
+accessible forms.
 
-**Access model:**
-- `super_admin` → sees all configured forms
-- Other users → see only forms explicitly mapped to their role or their user account
+**Submissions table (`/jotform/[formId]`):**
+Access is re-verified on every load before any data is fetched. The columns
+displayed are configured per-form via `visibleColumns` — a string array of
+Jotform answer field keys set by the super admin. Rows are expandable to show
+the full submission payload. Client-side search across visible column values.
 
-**Form list view (`/jotform`):**
-- Grid of cards, one per accessible form
-- Shows form name, submission count, last submission date
+**Caching:**
+On page load, if `JotformForm.lastSyncedAt` is older than `cacheTtlMins`, the
+server fetches fresh submissions from the Jotform API before rendering. Full
+submissions are stored in the `JotformSubmission` table as a `payload` JSON
+column. A background cron at `/api/cron/sync-jotform` runs every 10 minutes
+to keep all active forms current without waiting for a user to open the page.
 
-**Form detail view (`/jotform/[formId]`):**
-- Table of submissions fetched from Jotform API (server-side, cached)
-- Columns derived from form fields (configurable per form which fields to show)
-- Sort, search, and filter within the table
-- Click row to expand full submission detail
-- **No editing or deleting submissions** from the portal — read-only
+**Admin form management (`/admin/jotform`) — SUPER_ADMIN only:**
+- Add a form by Jotform Form ID
+- Set display name and description
+- Configure `visibleColumns` (field key selector using live Jotform API response)
+- Set cache TTL
+- Grant access to a role (multi-select)
+- Grant access to a specific user (user search picker)
+- Revoke any access grant
+- Toggle form active/inactive
 
-**Caching strategy:**
-- On page load: check cache age. If > 5 minutes, re-fetch from Jotform API.
-- Store submission metadata in `JotformSubmissionCache` table (submission ID, form ID, submitted at, respondent email if present, full JSON payload)
-- Cache TTL configurable per form by super_admin
-
-**Admin: Manage form access (`/admin/jotform`) — super_admin only:**
-- Add a form by Jotform Form ID + display name
-- Assign access by role (multi-select)
-- Assign access to specific users (user picker)
-- Configure which fields to display as columns in the table
-- Configure cache TTL
-- Enable/disable a form
+Every form view is written to `AuditLog`. Every access grant and revocation
+is written to `AuditLog`.
 
 ---
 
 ## 6. Technical Architecture
 
-### 6.1 Stack
+### 6.1 Stack Decisions
 
-| Layer | Technology | Notes |
+| Layer | Choice | Why |
 |---|---|---|
-| Framework | Next.js 14 (App Router) | RSC + Server Actions + API routes in one deployable unit |
-| Language | TypeScript (strict) | End-to-end type safety DB → API → UI |
-| Styling | Tailwind CSS + shadcn/ui | shadcn gives accessible, customizable primitives |
-| Auth | NextAuth.js v5 (Auth.js) | Google provider, domain enforcement, JWT sessions |
-| ORM | Prisma | Type-safe queries, migration management |
-| Database | PostgreSQL via Neon.tech | Serverless, free tier, Prisma-native |
-| Email | None (Phase 1) | In-app notifications only in MVP |
-| Calendar sync | Google Calendar API | Service account, server-side, Vercel Cron |
-| Jotform sync | Jotform REST API | API key stored in env, server-side only |
-| Deployment | Vercel | Zero-config, preview environments per PR |
-
-**What's intentionally excluded from the stack:**
-- Vercel Blob / S3 — no file hosting in Phase 1
-- Redis / Upstash — simple DB caching is sufficient for this scale
-- WebSockets / Pusher — no real-time features in Phase 1
+| Framework | Next.js 14 App Router | Server Components, Server Actions, file-based routing, and API routes in one deployable unit. |
+| Language | TypeScript strict mode | End-to-end type safety. Prisma generates types from the schema. No `any`. |
+| Styling | Tailwind CSS + shadcn/ui | shadcn components are copied into the repo and customizable. No component library lock-in. |
+| Auth | NextAuth.js v5 | First-class App Router support. Google provider built in. JWT sessions. |
+| ORM | Prisma | Type-safe queries. Migration management. Schema-first. |
+| Database | PostgreSQL via Neon | Serverless Postgres. Free tier sufficient for MVP scale. Prisma-native. |
+| Deployment | Vercel | Zero-config Next.js. Preview environments per PR. Cron jobs built in. |
+| Calendar | Google Calendar API | Service account auth. Server-side only. Read-only scopes. |
+| Jotform | Jotform REST API | API key auth. Server-side only. Read-only. |
+| File storage | None | Documents are external links. No storage bucket in Phase 1. |
+| Email | None | In-app only in Phase 1. |
+| Cache | PostgreSQL | DB-level caching for Jotform and Calendar. No Redis needed at this scale. |
 
 ### 6.2 Project Structure
 ```
 di-portal/
 ├── app/
 │   ├── (auth)/
-│   │   ├── login/
-│   │   │   └── page.tsx
-│   │   └── pending/
-│   │       └── page.tsx
+│   │   ├── login/page.tsx
+│   │   └── pending/page.tsx
 │   ├── (portal)/
-│   │   ├── layout.tsx              ← shell: sidebar + topbar
+│   │   ├── layout.tsx              ← Shell: sidebar + topbar
 │   │   ├── dashboard/
 │   │   │   └── page.tsx
 │   │   ├── announcements/
@@ -404,115 +512,248 @@ di-portal/
 │   │   │   ├── page.tsx
 │   │   │   ├── new/page.tsx
 │   │   │   └── [id]/page.tsx
-│   │   ├── calendar/
-│   │   │   └── page.tsx
+│   │   ├── calendar/page.tsx
 │   │   ├── jotform/
 │   │   │   ├── page.tsx
 │   │   │   └── [formId]/page.tsx
-│   │   └── quick-links/
-│   │       └── page.tsx
+│   │   └── quick-links/page.tsx
 │   ├── admin/
-│   │   ├── layout.tsx              ← admin guard
-│   │   ├── users/page.tsx
-│   │   ├── announcements/page.tsx
-│   │   ├── documents/page.tsx
-│   │   ├── requests/page.tsx
-│   │   ├── jotform/page.tsx
-│   │   └── settings/page.tsx
-│   └── api/
-│       ├── auth/[...nextauth]/route.ts
-│       └── cron/
-│           ├── sync-calendar/route.ts
-│           └── sync-jotform/route.ts
+│   │   ├── layout.tsx              ← Admin role guard
+│   │   ├── announcements/
+│   │   ├── documents/
+│   │   ├── quick-links/
+│   │   ├── requests/
+│   │   ├── users/                  ← SUPER_ADMIN only
+│   │   ├── jotform/                ← SUPER_ADMIN only
+│   │   └── settings/               ← SUPER_ADMIN only
+│   ├── api/
+│   │   ├── auth/[...nextauth]/route.ts
+│   │   └── cron/
+│   │       ├── sync-calendar/route.ts
+│   │       └── sync-jotform/route.ts
+│   └── 403/page.tsx
 ├── components/
-│   ├── ui/                         ← shadcn primitives
-│   ├── layout/                     ← Sidebar, Topbar, Shell
-│   └── modules/                    ← feature components
+│   ├── ui/                         ← shadcn primitives (do not modify)
+│   ├── layout/                     ← Shell, Sidebar, Topbar, NavItem
+│   └── modules/                    ← Feature components per module
 ├── lib/
 │   ├── auth.ts                     ← NextAuth config
 │   ├── db.ts                       ← Prisma singleton
-│   ├── permissions.ts              ← role + access helpers
-│   ├── google-calendar.ts          ← Calendar API wrapper
-│   └── jotform.ts                  ← Jotform API wrapper
+│   ├── permissions.ts              ← hasRole, requireRole, assertRole
+│   ├── audit.ts                    ← writeAuditLog helper
+│   ├── jotform.ts                  ← Jotform API + access check + cache logic
+│   └── google-calendar.ts          ← Calendar API wrapper
 ├── prisma/
 │   ├── schema.prisma
 │   └── migrations/
-├── middleware.ts                   ← route protection
-└── types/
-    └── index.ts
+├── middleware.ts
+├── types/
+│   ├── index.ts
+│   └── next-auth.d.ts
+└── vercel.json                     ← Cron job config
 ```
 
-### 6.3 Authentication Flow
+### 6.3 Data Fetching Rules
+
+- **Fetch in Server Components** by default. Do not add `useEffect` + `fetch`
+  patterns unless there is a specific interactivity reason.
+- **Mutate via Server Actions.** No API routes for CRUD operations. API routes
+  are for cron jobs, NextAuth callbacks, and any genuine webhooks only.
+- **No client-side data fetching libraries** (SWR, React Query) in Phase 1.
+  Server Components with `loading.tsx` skeletons cover all MVP use cases.
+
+### 6.4 Authentication Flow
 ```
 1. User clicks "Sign in with Google"
-2. NextAuth redirects to Google OAuth consent screen
-3. Google returns: { email, name, picture, hd }
-4. NextAuth signIn() callback (server-side):
-   a. if hd !== 'darulislah.org' → return false (rejected)
-   b. upsert User in DB (create or update lastLoginAt)
-   c. if new user → status = PENDING_ROLE
-5. session() callback: attach { id, role, status } to JWT
-6. middleware.ts on every protected request:
+2. NextAuth redirects to Google OAuth
+3. Google returns profile including hd (hosted domain)
+4. NextAuth signIn() callback:
+   a. Rejects if hd !== 'darulislah.org'
+   b. Upserts User record in DB
+   c. If first user ever: assigns SUPER_ADMIN + ACTIVE
+   d. If new user: assigns PENDING_ROLE status
+5. jwt() callback: reads role and status from DB, attaches to token
+6. session() callback: exposes { id, role, status } to application
+7. middleware.ts:
    a. No session → redirect /login?callbackUrl=...
    b. status === PENDING_ROLE → redirect /pending
-   c. Route requires admin+ but role is STAFF → 403
+   c. status === INACTIVE → redirect /403
+   d. Route requires higher role than user has → redirect /403
 ```
 
-### 6.4 Middleware Strategy
-
-`middleware.ts` is the first line of defense. It runs on the edge before any page renders.
+### 6.5 Middleware Route Guards
 ```typescript
-// Route permission map (pattern → minimum role)
-const routePermissions: Record<string, Role> = {
-  '/admin/users':   'SUPER_ADMIN',
-  '/admin/jotform': 'SUPER_ADMIN',
-  '/admin/settings':'SUPER_ADMIN',
-  '/admin':         'ADMIN',
-  '/requests':      'STAFF',
-  '/documents':     'STAFF',
-  '/jotform':       'STAFF',
+// Pattern → minimum role required
+const routePermissions = [
+  { pattern: /^\/admin\/users/,    minRole: 'SUPER_ADMIN' },
+  { pattern: /^\/admin\/jotform/,  minRole: 'SUPER_ADMIN' },
+  { pattern: /^\/admin\/settings/, minRole: 'SUPER_ADMIN' },
+  { pattern: /^\/admin/,           minRole: 'ADMIN'       },
+  { pattern: /^\/requests/,        minRole: 'STAFF'       },
+  { pattern: /^\/documents/,       minRole: 'STAFF'       },
+  { pattern: /^\/jotform/,         minRole: 'STAFF'       },
+]
+```
+
+Middleware is the first defense layer only. Every Server Component and Server
+Action independently re-validates before touching data. Never rely on middleware
+alone.
+
+### 6.6 Cron Configuration (`vercel.json`)
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/sync-calendar",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-jotform",
+      "schedule": "*/10 * * * *"
+    }
+  ]
 }
 ```
 
-**Critical rule:** Middleware is defense-in-depth only. Every Server Action and API route independently re-validates permissions using `lib/permissions.ts`. Never trust the client or assume middleware ran.
+Both cron endpoints verify `Authorization: Bearer ${CRON_SECRET}` before
+executing. Return 401 immediately if the header is missing or wrong.
 
-### 6.5 Jotform API Integration
-```
-Server-side flow (no Jotform credentials exposed to client):
+### 6.7 Environment Variables
+```bash
+# Auth
+NEXTAUTH_URL=https://portal.darulislah.org
+NEXTAUTH_SECRET=                        # openssl rand -base64 32
 
-/jotform/[formId] page load:
-  1. Check user has access to formId (DB query on JotformFormAccess)
-  2. Check cache age in JotformSubmissionCache
-  3. If stale → call Jotform API: GET /form/{id}/submissions
-  4. Upsert results into JotformSubmissionCache
-  5. Return cached data to client
+# Google OAuth (from Google Cloud Console)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
 
-Cron job (every 10 min via Vercel Cron):
-  - For each active JotformForm, fetch latest submissions
-  - Upsert into cache (idempotent by submissionId)
-```
+# Database (Neon — use pooled URL for app, direct URL for migrations)
+DATABASE_URL=                           # pooled: ?pgbouncer=true
+DIRECT_URL=                             # direct: for prisma migrate
 
-Jotform API key is stored in `JOTFORM_API_KEY` env variable. Never exposed to client.
+# Google Calendar service account (stringified JSON, single line)
+GOOGLE_SERVICE_ACCOUNT_KEY=
 
-### 6.6 Google Calendar Integration
-```
-Vercel Cron (*/15 * * * *) → /api/cron/sync-calendar:
-  1. Read all active CalendarSource records from DB
-  2. For each source: call Google Calendar API
-     GET /calendars/{calendarId}/events
-     (timeMin = now, timeMax = now + 60 days, maxResults = 100)
-  3. Upsert events into CalendarEvent table by googleEventId
-  4. Delete CalendarEvent records for events no longer in Google
+# Jotform
+JOTFORM_API_KEY=
 
-Auth: Google service account JSON (stored in GOOGLE_SERVICE_ACCOUNT_KEY env var)
-Service account must be granted read access to each calendar.
+# Cron protection
+CRON_SECRET=                            # openssl rand -base64 32
+
+# App
+NEXT_PUBLIC_APP_URL=https://portal.darulislah.org
 ```
 
 ---
 
-## 7. Database Schema
+## 7. Security Model
 
-### 7.1 Prisma Schema
+### 7.1 Authentication
+
+- **Google OAuth only.** No password auth, no magic links, no other providers.
+- **Domain enforcement** happens in the NextAuth `signIn()` callback
+  server-side. The check is `profile.hd === 'darulislah.org'`. This cannot
+  be bypassed by the client.
+- **Google OAuth consent screen** must be set to "Internal" in Google Cloud
+  Console so only Workspace users in the `darulislah.org` organization can
+  initiate the OAuth flow.
+- **JWT sessions.** Role and status are read from the database on each token
+  refresh — a role change takes effect without requiring the user to sign out.
+
+### 7.2 Authorization
+
+Three independent enforcement layers. All three must be in place:
+
+**1. Middleware** — edge, before render. Rejects unauthenticated requests and
+obvious role mismatches. Fast but coarse.
+
+**2. Server Components** — before data is fetched. Fine-grained checks using
+`requireRole()` from `lib/permissions.ts`. Returns `redirect('/403')` or
+`notFound()` as appropriate.
+
+**3. Server Actions** — before any mutation. Uses `assertRole()` from
+`lib/permissions.ts`. Throws `Error('Unauthorized')` if check fails, which
+surfaces as a form error.
+```typescript
+// lib/permissions.ts
+
+export function hasRole(userRole: Role, minRole: Role): boolean {
+  const rank = { VOLUNTEER: 0, STAFF: 1, ADMIN: 2, SUPER_ADMIN: 3 }
+  return rank[userRole] >= rank[minRole]
+}
+
+// Use in Server Components
+export async function requireRole(minRole: Role) {
+  const session = await auth()
+  if (!session?.user || !hasRole(session.user.role, minRole)) redirect('/403')
+  return session
+}
+
+// Use in Server Actions
+export async function assertRole(minRole: Role) {
+  const session = await auth()
+  if (!session?.user || !hasRole(session.user.role, minRole)) {
+    throw new Error('Unauthorized')
+  }
+  return session
+}
+```
+
+### 7.3 Jotform Access Enforcement
+
+Access check runs on every `/jotform/[formId]` load before any data is fetched:
+```typescript
+export async function canAccessForm(
+  userId: string,
+  role: Role,
+  formId: string,
+): Promise<boolean> {
+  if (role === 'SUPER_ADMIN') return true
+  const access = await db.jotformFormAccess.findFirst({
+    where: { formId, OR: [{ roleAccess: role }, { userId }] },
+  })
+  return !!access
+}
+```
+
+Denied access returns `notFound()` — not a 403. This prevents URL enumeration:
+a user cannot confirm whether a form exists by probing URLs.
+
+The Jotform API key is server-side only. It is never referenced in any client
+component, never returned in any API response, and never appears in the browser
+network tab.
+
+### 7.4 Data Protection
+
+| Risk | Control |
+|---|---|
+| SQL injection | Prisma parameterizes all queries. `$queryRawUnsafe` is prohibited. |
+| XSS via rich text | `isomorphic-dompurify` sanitizes announcement body before storage and before render. `dangerouslySetInnerHTML` is only used with sanitized output. |
+| IDOR on requests | Staff accessing another user's request by URL gets `notFound()`. Server Component checks `submittedById === session.user.id` before rendering. |
+| IDOR on Jotform forms | Direct URL to an inaccessible form returns `notFound()`. |
+| Internal comment leakage | `isInternal: true` comments are filtered in the database query for non-admin users, not hidden client-side. |
+| CSRF | Next.js Server Actions have built-in CSRF protection via `Origin` header validation. No additional CSRF tokens needed. |
+| Secret exposure | All secrets are Vercel environment variables. Never committed to git. `.env.local` is gitignored. |
+
+### 7.5 Audit Logging
+
+The `AuditLog` table is append-only. Write audit entries for:
+
+| Event | Fields logged |
+|---|---|
+| User role change | `userId` (actor), `entityId` (affected user), old role, new role |
+| Announcement create / edit / delete | `userId`, `entityId` (announcement), action |
+| Document add / edit / archive | `userId`, `entityId` (document), action |
+| Request status change | `userId`, `entityId` (request), old status, new status |
+| Request assignment | `userId`, `entityId` (request), assigneeId |
+| Jotform form view | `userId`, `entityId` (form), timestamp |
+| Jotform access grant / revoke | `userId` (actor), `entityId` (form), grantee (role or userId) |
+
+Audit logs are visible to `SUPER_ADMIN` at `/admin/settings`. They are never
+editable or deletable from the UI.
+
+### 7.6 Database Schema
 ```prisma
 // prisma/schema.prisma
 
@@ -521,11 +762,10 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
-
-// ─── Enums ────────────────────────────────────────────────────────────────
 
 enum Role {
   SUPER_ADMIN
@@ -554,8 +794,6 @@ enum RequestStatus {
   CLOSED
 }
 
-// ─── Users & Teams ────────────────────────────────────────────────────────
-
 model User {
   id          String     @id @default(cuid())
   email       String     @unique
@@ -569,11 +807,10 @@ model User {
   updatedAt   DateTime   @updatedAt
   lastLoginAt DateTime?
 
-  // Relations
   authoredAnnouncements Announcement[]
   addedDocuments        Document[]
-  submittedRequests     Request[]       @relation("RequestSubmitter")
-  assignedRequests      Request[]       @relation("RequestAssignee")
+  submittedRequests     Request[]          @relation("RequestSubmitter")
+  assignedRequests      Request[]          @relation("RequestAssignee")
   requestComments       RequestComment[]
   jotformAccess         JotformFormAccess[]
   auditLogs             AuditLog[]
@@ -581,37 +818,33 @@ model User {
 
 model Team {
   id          String   @id @default(cuid())
-  name        String   @unique   // "Education", "Facilities", "Youth", etc.
+  name        String   @unique
   description String?
   createdAt   DateTime @default(now())
   members     User[]
 }
 
-// ─── Announcements ────────────────────────────────────────────────────────
-
 model Announcement {
-  id           String     @id @default(cuid())
-  title        String
-  body         String     // sanitized HTML from rich text editor
-  isPinned     Boolean    @default(false)
-  expiresAt    DateTime?
-  targetRoles  Role[]     // empty array = visible to all roles
-  targetTeams  String[]   // team IDs, empty = all teams
-  attachments  Json?      // [{ label: string, url: string }]
-  authorId     String
-  author       User       @relation(fields: [authorId], references: [id])
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  deletedAt    DateTime?  // soft delete
+  id          String    @id @default(cuid())
+  title       String
+  body        String
+  isPinned    Boolean   @default(false)
+  expiresAt   DateTime?
+  targetRoles Role[]
+  targetTeams String[]
+  attachments Json?     // [{ label: string, url: string }]
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
 }
-
-// ─── Document Hub ─────────────────────────────────────────────────────────
 
 model DocumentCategory {
   id          String     @id @default(cuid())
   name        String
   description String?
-  visibleTo   Role[]     // roles that can browse this category
+  visibleTo   Role[]
   sortOrder   Int        @default(0)
   isActive    Boolean    @default(true)
   documents   Document[]
@@ -622,8 +855,8 @@ model Document {
   id          String           @id @default(cuid())
   title       String
   description String?
-  externalUrl String           // the actual file link (Google Drive, etc.)
-  sourceLabel String           @default("Google Drive") // display label for the source
+  externalUrl String
+  sourceLabel String           @default("Google Drive")
   categoryId  String
   category    DocumentCategory @relation(fields: [categoryId], references: [id])
   tags        String[]
@@ -631,42 +864,38 @@ model Document {
   addedBy     User             @relation(fields: [addedById], references: [id])
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
-  deletedAt   DateTime?        // soft delete
+  deletedAt   DateTime?
 }
-
-// ─── Quick Links ──────────────────────────────────────────────────────────
 
 model QuickLink {
   id        String   @id @default(cuid())
   label     String
   url       String
-  icon      String?  // emoji or icon identifier
-  category  String?  // grouping label
-  visibleTo Role[]   // empty = all roles
+  icon      String?
+  category  String?
+  visibleTo Role[]
   sortOrder Int      @default(0)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 }
 
-// ─── Help Desk Requests ───────────────────────────────────────────────────
-
 model Request {
-  id           String        @id @default(cuid())
-  title        String
-  description  String
-  type         String        // "IT" | "Facilities" | "HR" | "Other" — from config
-  priority     Priority      @default(MEDIUM)
-  status       RequestStatus @default(OPEN)
-  attachments  Json?         // [{ label: string, url: string }]
+  id            String        @id @default(cuid())
+  title         String
+  description   String
+  type          String
+  priority      Priority      @default(MEDIUM)
+  status        RequestStatus @default(OPEN)
+  attachments   Json?         // [{ label: string, url: string }]
   submittedById String
-  submittedBy  User          @relation("RequestSubmitter", fields: [submittedById], references: [id])
-  assigneeId   String?
-  assignee     User?         @relation("RequestAssignee", fields: [assigneeId], references: [id])
-  resolvedAt   DateTime?
-  closedAt     DateTime?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  comments     RequestComment[]
+  submittedBy   User          @relation("RequestSubmitter", fields: [submittedById], references: [id])
+  assigneeId    String?
+  assignee      User?         @relation("RequestAssignee", fields: [assigneeId], references: [id])
+  resolvedAt    DateTime?
+  closedAt      DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  comments      RequestComment[]
 }
 
 model RequestComment {
@@ -676,21 +905,19 @@ model RequestComment {
   authorId   String
   author     User     @relation(fields: [authorId], references: [id])
   body       String
-  isInternal Boolean  @default(false)  // true = admin-only, requester cannot see
+  isInternal Boolean  @default(false)
   createdAt  DateTime @default(now())
 }
 
-// ─── Google Calendar ──────────────────────────────────────────────────────
-
 model CalendarSource {
-  id           String   @id @default(cuid())
-  calendarId   String   @unique   // Google Calendar ID
+  id           String          @id @default(cuid())
+  calendarId   String          @unique
   displayName  String
-  color        String?  // hex color for UI
-  isActive     Boolean  @default(true)
+  color        String?
+  isActive     Boolean         @default(true)
   lastSyncedAt DateTime?
   events       CalendarEvent[]
-  createdAt    DateTime @default(now())
+  createdAt    DateTime        @default(now())
 }
 
 model CalendarEvent {
@@ -709,30 +936,25 @@ model CalendarEvent {
   @@index([startTime])
 }
 
-// ─── Jotform ──────────────────────────────────────────────────────────────
-
 model JotformForm {
-  id            String              @id @default(cuid())
-  jotformId     String              @unique   // Jotform's own form ID
-  displayName   String
-  description   String?
-  isActive      Boolean             @default(true)
-  cacheTtlMins  Int                 @default(5)
-  visibleColumns Json?              // string[] of field keys to show as table columns
-  lastSyncedAt  DateTime?
-  createdAt     DateTime            @default(now())
-  access        JotformFormAccess[]
-  submissions   JotformSubmission[]
+  id             String              @id @default(cuid())
+  jotformId      String              @unique
+  displayName    String
+  description    String?
+  isActive       Boolean             @default(true)
+  cacheTtlMins   Int                 @default(5)
+  visibleColumns Json?               // string[] of Jotform answer field keys
+  lastSyncedAt   DateTime?
+  createdAt      DateTime            @default(now())
+  access         JotformFormAccess[]
+  submissions    JotformSubmission[]
 }
 
-// Access mapping: a form can be granted to a role, a specific user, or both
 model JotformFormAccess {
   id         String      @id @default(cuid())
   formId     String
   form       JotformForm @relation(fields: [formId], references: [id])
-  // Grant to a role (nullable — either role or userId must be set, not both)
   roleAccess Role?
-  // Grant to a specific user (nullable)
   userId     String?
   user       User?       @relation(fields: [userId], references: [id])
   createdAt  DateTime    @default(now())
@@ -742,28 +964,26 @@ model JotformFormAccess {
 }
 
 model JotformSubmission {
-  id           String      @id @default(cuid())
-  submissionId String      @unique   // Jotform's submission ID
-  formId       String
-  form         JotformForm @relation(fields: [formId], references: [id])
-  submittedAt  DateTime
+  id              String      @id @default(cuid())
+  submissionId    String      @unique
+  formId          String
+  form            JotformForm @relation(fields: [formId], references: [id])
+  submittedAt     DateTime
   respondentEmail String?
-  payload      Json        // full submission data from Jotform API
-  syncedAt     DateTime    @default(now())
+  payload         Json
+  syncedAt        DateTime    @default(now())
 
   @@index([formId, submittedAt])
 }
-
-// ─── Audit Log ────────────────────────────────────────────────────────────
 
 model AuditLog {
   id         String   @id @default(cuid())
   userId     String?
   user       User?    @relation(fields: [userId], references: [id])
-  action     String   // e.g. "CREATE_ANNOUNCEMENT", "RESOLVE_REQUEST", "VIEW_JOTFORM"
-  entityType String?  // "Announcement", "Request", "JotformForm", etc.
+  action     String
+  entityType String?
   entityId   String?
-  metadata   Json?    // contextual detail (old/new values, IP, etc.)
+  metadata   Json?
   createdAt  DateTime @default(now())
 
   @@index([userId])
@@ -771,209 +991,97 @@ model AuditLog {
 }
 ```
 
-### 7.2 Key Schema Decisions
+**Schema design notes:**
 
-| Decision | Rationale |
+- `cuid()` IDs throughout — non-guessable, no sequential enumeration risk.
+- Soft deletes (`deletedAt`) on `Announcement` and `Document` — data preserved
+  for audit, never hard-deleted from the portal.
+- `Role[]` arrays on `Announcement`, `DocumentCategory`, and `QuickLink` avoid
+  junction tables for a simple many-role relationship.
+- `JotformFormAccess` allows either `roleAccess` or `userId` (both nullable).
+  Unique constraints prevent duplicate grants of each type per form.
+- `JotformSubmission.payload` is a `Json` column — full Jotform API response
+  preserved. `visibleColumns` on the form determines which fields are rendered.
+- All tables exist from migration 001. Data is populated incrementally as
+  modules ship.
+
+---
+
+## 8. Explicitly Out of Scope
+
+These items are not in Phase 1. Do not build them. If a conversation or PR
+moves toward one of these, stop and check against this list.
+
+| Item | Why excluded |
 |---|---|
-| No file storage model | Documents are metadata + URL. No upload infrastructure to maintain. |
-| `Role[]` arrays on `Announcement` and `DocumentCategory` | Avoids junction tables for a simple many-role relationship. Clean to query. |
-| `JotformFormAccess` dual-key design | `roleAccess` and `userId` are both nullable, allowing either type of grant. Unique constraints prevent duplicates. |
-| `JotformSubmission.payload Json` | Jotform fields vary per form. Store full JSON, derive columns per-form from `visibleColumns` config. |
-| Soft deletes on `Announcement`, `Document` | Preserve history for audit purposes without hard deletes. |
-| `cuid()` for all IDs | Better than auto-increment for distributed systems; non-guessable. |
+| Vendor directory | No demonstrated staff need. Simple to add in Phase 2 when demand exists. |
+| Hall booking workflow | Real complexity: conflict detection, state machine, notifications. Validate adoption first. |
+| Public-facing pages | This is an internal staff tool. No public routes, no member portal. |
+| File upload / storage | Documents are external links. No Vercel Blob, no S3. |
+| Email notifications | In-app only for Phase 1. Requires Resend setup, template design, unsubscribe management. |
+| Two-way Google Calendar | Read-only sync is sufficient for MVP. |
+| Full-text document search | Requires text extraction pipeline. Metadata search covers MVP needs. |
+| Request SLA auto-escalation | Requires background job orchestration. Visual indicators only in Phase 1. |
+| Jotform write-back | The portal is a read-only viewer. |
+| Analytics dashboard | Not enough data or users to make it meaningful at launch. |
+| PWA / offline support | Understand usage patterns before investing here. |
+| AI features | Out of scope until Phase 1 is stable and adopted. |
+| Redis or dedicated cache layer | PostgreSQL is fast enough at ≤50 concurrent users. |
+| Native mobile app | Responsive web covers the MVP use case. |
+| HR, payroll, or financial data | Different systems, different access requirements, different compliance needs. |
 
 ---
 
-## 8. Security Model
+## 9. Phase 2 Ideas
 
-### 8.1 Authentication
+These are candidates for Phase 2, not commitments. Priority will be determined
+by actual staff usage patterns and feedback after Phase 1 launch.
 
-- **Domain enforcement** is applied in the NextAuth `signIn()` callback server-side: `hd !== 'darulislah.org'` → rejected. This cannot be bypassed by the client.
-- **JWT sessions** (not DB sessions) for stateless, scalable auth. The JWT includes `{ id, email, role, status }`.
-- **Session secret** (`NEXTAUTH_SECRET`) must be a 32+ character random string. Rotate every 90 days.
-- **No magic links, no password auth.** Google OAuth is the only login method.
+**Vendor Directory**
+Searchable internal directory with contact info, category tags, and admin notes.
+Simple to build once Phase 1 is stable. Add only when staff ask for it.
 
-### 8.2 Authorization
+**Hall Booking Workflow**
+Request → approval → conflict detection workflow for the main hall and other
+spaces. Meaningful feature but meaningful complexity. Hall booking will be
+a separate spec when it reaches the top of the priority list.
 
-- **Defense in depth:** Permissions are checked in three places:
-  1. `middleware.ts` — blocks unauthenticated and unauthorized routes at the edge
-  2. Server Components — re-check role before rendering sensitive data
-  3. Server Actions / API route handlers — re-check role before any DB mutation
-- **Never trust client-sent role data.** Role is always read from the database-backed session, never from a request body or header.
-- **Jotform access** is always verified server-side via a DB query on `JotformFormAccess` before the Jotform API is called. Knowing a `formId` URL segment is not sufficient — the access check must pass.
+**Email Notifications**
+Transactional email for request assignment, request resolution, and new
+announcements. Use Resend + React Email. Add once staff are consistently
+using the portal and email notification value is clear.
 
-### 8.3 Data Protection
+**Announcement Email Digest**
+Weekly digest of new announcements. Depends on email infrastructure above.
 
-| Risk | Mitigation |
-|---|---|
-| SQL injection | Prisma parameterizes all queries by default. Never use `$queryRawUnsafe` with user input. |
-| XSS via rich text | Sanitize announcement body with `DOMPurify` server-side before storage. Never `dangerouslySetInnerHTML` with unsanitized content. |
-| CSRF | Next.js Server Actions have built-in CSRF protection via `Origin` header validation. |
-| Jotform API key exposure | Key is server-side only (`JOTFORM_API_KEY` env var). Never referenced in client components or exposed via API responses. |
-| Google service account key exposure | `GOOGLE_SERVICE_ACCOUNT_KEY` env var, server-side only. Restrict service account permissions to Calendar read-only. |
-| Insecure direct object reference | All resource fetches (documents, requests, Jotform submissions) verify the requesting user has access before returning data — not just based on the ID in the URL. |
+**Document Full-Text Search**
+Cross-category search over document content, not just metadata. Requires
+extracting text from linked files (PDF, DOCX) and indexing it. Options:
+Typesense, Meilisearch, or PostgreSQL `pg_trgm`.
 
-### 8.4 Environment Variables
-```bash
-# Auth
-NEXTAUTH_URL=https://portal.darulislah.org
-NEXTAUTH_SECRET=<32+ char random string>
-GOOGLE_CLIENT_ID=<from Google Cloud Console>
-GOOGLE_CLIENT_SECRET=<from Google Cloud Console>
+**Request SLA Auto-Escalation**
+Automatically notify an admin or re-assign a request that has sat past its
+SLA threshold. Requires a background job runner (Inngest, Trigger.dev).
 
-# Database
-DATABASE_URL=<Neon PostgreSQL connection string>
+**Jotform Submission Actions**
+Allow designated users to update a status field or add a note to a Jotform
+submission, writing back via the Jotform API. Currently blocked by read-only
+constraint.
 
-# Google Calendar (service account JSON as single-line string)
-GOOGLE_SERVICE_ACCOUNT_KEY=<stringified JSON>
+**Analytics and Usage Dashboard**
+Usage stats for super admin: most-viewed documents, request volume by type,
+Jotform submission trends. Build after 90 days of usage data exists.
 
-# Jotform
-JOTFORM_API_KEY=<from Jotform account settings>
+**Audit Log Export**
+CSV export of audit log entries filtered by date range and event type.
+Useful for compliance review.
 
-# App
-NEXT_PUBLIC_APP_URL=https://portal.darulislah.org
-```
+**Team-Scoped Admin Permissions**
+Allow an admin's write access to be scoped to a specific team — e.g., the
+Education department admin can only manage Education announcements and
+documents. Currently all admins have global content permissions.
 
-All secrets stored in Vercel Environment Variables. Never committed to git. `.env.local` is gitignored.
-
-### 8.5 Audit Logging
-
-Write to `AuditLog` for every:
-- User role change
-- Document add/edit/delete
-- Announcement create/edit/delete
-- Request status change
-- Jotform form access grant/revoke
-- Jotform form view (user, form, timestamp)
-
-Audit log is append-only. `super_admin` can view audit logs from the Settings panel.
-
----
-
-## 9. Phased Implementation Plan
-
-### Phase 1A — Foundation (Weeks 1–2)
-
-**Goal:** Authentication, shell, user management, and DB running on Vercel. Nothing public-facing yet.
-
-- [ ] Initialize Next.js 14 project (TypeScript, Tailwind, ESLint, Prettier)
-- [ ] Configure Prisma + Neon Postgres; write and run initial migration
-- [ ] Set up NextAuth.js with Google provider and domain enforcement
-- [ ] Build `middleware.ts`: auth gate, role gate, pending-role gate
-- [ ] Build portal shell: sidebar, topbar, user avatar/dropdown
-- [ ] `/pending` holding page for new users
-- [ ] `/admin/users`: list users, assign roles, toggle active/inactive (super_admin only)
-- [ ] Deploy to Vercel; configure all environment variables
-- [ ] Set up GitHub Actions CI: lint + typecheck on every PR
-
-**Exit criteria:** A `@darulislah.org` account can log in, be assigned a role, and see a shell with empty pages.
-
----
-
-### Phase 1B — Content Modules (Weeks 3–5)
-
-**Goal:** Staff can find information. Replaces "where's that document?" and "did you see the announcement?"
-
-- [ ] **Announcements:** list (role-filtered), detail, create/edit (admin), pin, expiry
-- [ ] **Document Hub:** category management, document record CRUD (no upload — just URL), search within category
-- [ ] **Quick Links:** admin CRUD, dashboard grid, role-filtered display
-- [ ] **Dashboard:** greeting, pinned announcements widget, quick links widget, upcoming events placeholder, recent documents widget
-
-**Exit criteria:** Admin can post an announcement and add a document link. Staff can browse and find them.
-
----
-
-### Phase 1C — Operational Modules (Weeks 6–9)
-
-**Goal:** Staff can do things, not just read things.
-
-- [ ] **Help Desk Requests:** submission form, admin list view, assignment, status workflow, comments (public + internal), SLA color indicators
-- [ ] **Google Calendar sync:** service account config, cron job, `CalendarEvent` population, `/calendar` page (list + month view)
-- [ ] **Jotform Submissions Viewer:**
-  - Admin: manage forms + access mappings (`/admin/jotform`)
-  - User: `/jotform` form list (access-filtered), `/jotform/[formId]` submissions table
-  - Cron job: background sync into `JotformSubmission` cache
-  - Server-side access verification on every request
-- [ ] **Dashboard:** wire up requests widget, calendar events widget, Jotform links widget
-
-**Exit criteria:** Evening school coordinator can log in and see only their Jotform submissions. Staff can file a help desk request and track its status.
-
----
-
-### Phase 1D — Polish & Launch (Weeks 10–12)
-
-**Goal:** Production-ready. Real users. No rough edges.
-
-- [ ] Full permission audit: test every route with every role using a checklist
-- [ ] Mobile responsive QA pass (sidebar collapse, table scroll, form usability)
-- [ ] Audit log viewer for `super_admin` in Settings
-- [ ] Onboarding: first-login welcome modal explaining the portal sections
-- [ ] Seed script: create initial teams, quick links, document categories from a config file
-- [ ] Error handling: friendly 403, 404, and 500 pages
-- [ ] Rate limit auth endpoint (Vercel edge middleware)
-- [ ] Security checklist: OWASP Top 10 review against all routes and Server Actions
-- [ ] Soft launch: 3–5 staff beta testers, one week feedback cycle
-- [ ] Fix critical feedback issues
-- [ ] Full staff launch announcement (via the portal itself)
-
-**Exit criteria:** All 7 modules functional, mobile-usable, all roles tested, production stable.
-
----
-
-### Timeline Summary
-
-| Phase | Weeks | Output |
-|---|---|---|
-| 1A — Foundation | 1–2 | Auth + shell on Vercel |
-| 1B — Content | 3–5 | Announcements, Documents, Quick Links, Dashboard |
-| 1C — Operations | 6–9 | Requests, Calendar, Jotform |
-| 1D — Polish | 10–12 | QA, security, staff launch |
-| **Total** | **~12 weeks** | **Full Phase 1 MVP live** |
-
----
-
-## 10. Deferred to Phase 2
-
-### 10.1 Vendor Directory
-
-A searchable internal directory of vendors with contact info, categories, and notes. Removed from MVP to reduce scope. The data model is simple — defer until there is explicit staff demand.
-
-### 10.2 Hall Booking Workflow
-
-A full booking request → approval → conflict detection workflow for the main hall and other spaces. Has meaningful complexity (conflict detection, state machine, notifications). Defer until Phase 1 proves adoption.
-
-### 10.3 Email Notifications
-
-Transactional email (request assigned, request resolved, new announcement) via Resend + React Email. Phase 1 is in-app only. Add once staff are consistently using the portal.
-
-### 10.4 Document Full-Text Search
-
-Search inside document content (PDFs, DOCX) rather than just metadata. Requires text extraction and indexing (Typesense, Meilisearch, or pg_trgm). Phase 1 search is metadata-only.
-
-### 10.5 Announcement Email Digest
-
-Weekly email digest of new announcements with unsubscribe management. Depends on email infrastructure being in place.
-
-### 10.6 Request SLA Automation
-
-Auto-escalation: if a request sits at HIGH priority for 24 hours unassigned, auto-notify admin or re-assign. Requires background job orchestration (Inngest or similar). Phase 1 is visual indicators only.
-
-### 10.7 Jotform: Two-Way Actions
-
-Allow designated users to update a Jotform submission status or add a note from within the portal, writing back to Jotform via API. Phase 1 is read-only.
-
-### 10.8 Analytics Dashboard
-
-Usage stats for `super_admin`: most-viewed documents, request volume by type, Jotform submission trends. Build after there is enough usage data to make it meaningful.
-
-### 10.9 PWA / Offline Support
-
-Progressive Web App shell so staff can access quick links and recent documents offline. Defer until mobile usage patterns are understood.
-
-### 10.10 AI-Powered Features
-
-Semantic document search, request auto-categorization, or announcement drafting assistance. Not in scope until Phase 1 is stable and widely adopted.
-
----
-
-*This document is the authoritative product and technical specification for the Darul Islah Internal Portal Phase 1 MVP. All implementation decisions should be reflected here as they are made. Treat it as a living document throughout the build.*
+**PWA Shell**
+Add a web app manifest and service worker so staff can install the portal on
+their phone home screen and access quick links and recent documents offline.
+Build after mobile usage patterns are understood.

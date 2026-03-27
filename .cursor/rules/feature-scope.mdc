@@ -1,0 +1,31 @@
+---
+alwaysApply: true
+---
+MVP feature scope (Phase 1):
+- authentication (Google OAuth, `@darulislah.org` only)
+- dashboard
+- announcements
+- document / SOP hub (metadata + external links only)
+- quick links
+- internal requests / help desk
+- Google Calendar events (read-only, synced server-side)
+- Jotform submissions viewer (read-only, role/user-granted access)
+
+Explicitly out of MVP scope (defer to Phase 2+):
+- vendor directory
+- hall booking workflow
+- preferred vendor management
+- public-facing forms or member workflows
+- file uploads / blob storage / S3 integration
+- email notification system
+- Jotform write-back or submission editing
+- two-way Google Calendar sync
+- analytics dashboards
+- AI-powered features
+
+Enforcement rules:
+- build only features listed in MVP scope unless user explicitly changes scope
+- do not create routes, tables, or services for deferred features
+- keep integrations simple and read-focused for Calendar and Jotform
+- preserve "documents are links, not uploads" as a hard boundary
+- if a request conflicts with this scope, ask for explicit scope-change approval
